@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Renderer, Triangle, Program, Mesh } from "ogl";
 import "./Prism.css";
 import Hero from "../components/Hero";
@@ -7,10 +7,19 @@ import Footer from "../components/Footer";
 
 const PrismBackground = () => {
   const containerRef = useRef(null);
+  const [isPageVisible, setIsPageVisible] = useState(() => !document.hidden);
+
   useEffect(() => {
+    const onVisibilityChange = () => setIsPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isPageVisible) return;
     const container = containerRef.current;
     if (!container) return;
-    const renderer = new Renderer({ alpha: true, dpr: 2 });
+    const renderer = new Renderer({ alpha: true, dpr: 1.5 });
     const gl = renderer.gl;
     container.appendChild(gl.canvas);
 
@@ -48,7 +57,7 @@ const PrismBackground = () => {
       window.removeEventListener("resize", resize);
       if (container.contains(gl.canvas)) container.removeChild(gl.canvas);
     };
-  }, []);
+  }, [isPageVisible]);
 
   return <div className="prism-bg" ref={containerRef} />;
 };

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import ProductCard from "../components/ProductCard";
+import CartItem from "../components/CartItem";
 import "./Articles.css";
 
 const sampleProducts = [
@@ -29,42 +31,52 @@ export default function Articles() {
   const [cart, setCart] = useState([]);
   const [orderSuccess, setOrderSuccess] = useState(false);
 
-  
+  const qtyByProductRef = useRef(new Map());
 
-  const filtered = sampleProducts.filter(p =>
-    p.name.toLowerCase().includes(query.toLowerCase())
+  const filtered = useMemo(
+    () => sampleProducts.filter(p => p.name.toLowerCase().includes(query.toLowerCase())),
+    [query]
   );
 
-  function addToCart(product) {
+  const addToCart = useCallback((product) => {
+    const nextQty = (qtyByProductRef.current.get(product.id) || 0) + 1;
+    qtyByProductRef.current.set(product.id, nextQty);
     setCart(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
-      if (existing) {
-        return prev.map(i =>
-          i.product.id === product.id
-            ? { ...i, qty: i.qty + 1 }
-            : i
-        );
-      }
-      return [...prev, { product, qty: 1 }];
+      const exists = prev.some(i => i.product.id === product.id);
+      return exists
+        ? prev.map(i => (i.product.id === product.id ? { ...i, qty: nextQty } : i))
+        : [...prev, { product, qty: nextQty }];
     });
-  }
+  }, []);
 
-  function changeQty(id, delta) {
-    setCart(prev =>
-      prev
-        .map(i =>
-          i.product.id === id ? { ...i, qty: i.qty + delta } : i
-        )
-        .filter(i => i.qty > 0)
-    );
-  }
+  const changeQty = useCallback((id, delta) => {
+    setCart(prev => {
+      const next = prev
+        .map(i => (i.product.id === id ? { ...i, qty: i.qty + delta } : i))
+        .filter(i => i.qty > 0);
+      const item = next.find(i => i.product.id === id);
+      if (item) {
+        qtyByProductRef.current.set(id, item.qty);
+      } else {
+        qtyByProductRef.current.delete(id);
+      }
+      return next;
+    });
+  }, []);
 
-  function removeFromCart(id) {
+  const removeFromCart = useCallback((id) => {
+    qtyByProductRef.current.delete(id);
     setCart(prev => prev.filter(i => i.product.id !== id));
-  }
+  }, []);
 
-  const totalItems = cart.reduce((acc, i) => acc + i.qty, 0);
-  const totalPrice = cart.reduce((acc, i) => acc + i.qty * i.product.price, 0);
+  const handleCheckout = useCallback(() => {
+    setCart([]);
+    qtyByProductRef.current.clear();
+    setOrderSuccess(false);
+  }, []);
+
+  const totalItems = useMemo(() => cart.reduce((acc, i) => acc + i.qty, 0), [cart]);
+  const totalPrice = useMemo(() => cart.reduce((acc, i) => acc + i.qty * i.product.price, 0), [cart]);
 
   return (
     <div className="articles-page">
@@ -92,27 +104,7 @@ export default function Articles() {
           <>
             <div className="cart-items">
               {cart.map(i => (
-                <div key={i.product.id} className="cart-item">
-                  <img src={i.product.img} alt={i.product.name} />
-
-                  <div className="info">
-                    <div className="title">{i.product.name}</div>
-                    <div className="price">{i.product.price} DH</div>
-                  </div>
-
-                  <div className="quantity">
-                    <button onClick={() => changeQty(i.product.id, -1)}>-</button>
-                    <span>{i.qty}</span>
-                    <button onClick={() => changeQty(i.product.id, 1)}>+</button>
-                  </div>
-
-                  <div
-                    className="remove"
-                    onClick={() => removeFromCart(i.product.id)}
-                  >
-                    🗑️
-                  </div>
-                </div>
+                <CartItem key={i.product.id} item={i} onChangeQty={changeQty} onRemove={removeFromCart} />
               ))}
             </div>
 
@@ -138,24 +130,7 @@ export default function Articles() {
       {/* PRODUCTS */}
       <div className={`products-row ${cart.length > 0 ? "dimmed" : ""}`}>
         {filtered.map(p => (
-          <div key={p.id} className="product-card">
-            <img src={p.img} alt={p.name} />
-
-            <div className="product-info">
-              <h3>{p.name}</h3>
-              <div className="price">{p.price} DH</div>
-
-              <div className={`stock-badge ${p.inStock ? "stock-available" : "stock-unavailable"}`}>
-                {p.inStock ? "En Stock" : "Rupture de Stock"}
-              </div>
-            </div>
-
-            {p.inStock && (
-              <div className="add-to-cart" onClick={() => addToCart(p)}>
-                Ajouter au panier
-              </div>
-            )}
-          </div>
+          <ProductCard key={p.id} product={p} onAdd={addToCart} />
         ))}
       </div>
 
@@ -177,10 +152,7 @@ export default function Articles() {
             </div>
             <button
               className="checkout-btn"
-              onClick={() => {
-                setCart([]);
-                setOrderSuccess(false);
-              }}
+              onClick={handleCheckout}
             >
               Retour à la boutique
             </button>

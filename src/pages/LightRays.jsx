@@ -39,6 +39,7 @@ const LightRays = ({
   const animationIdRef = useRef(null);
   const cleanupFunctionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(() => !document.hidden);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -51,9 +52,15 @@ const LightRays = ({
   }, []);
 
   useEffect(() => {
-    if (!isVisible || !containerRef.current) return;
+    const onVisibilityChange = () => setIsPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
 
-    const renderer = new Renderer({ dpr: Math.min(window.devicePixelRatio, 2), alpha: true });
+  useEffect(() => {
+    if (!isVisible || !isPageVisible || !containerRef.current) return;
+
+    const renderer = new Renderer({ dpr: Math.min(window.devicePixelRatio, 1.5), alpha: true });
     rendererRef.current = renderer;
     const gl = renderer.gl;
 
@@ -124,7 +131,7 @@ const LightRays = ({
     };
 
     return () => cleanupFunctionRef.current?.();
-  }, [isVisible, raysOrigin, raysColor, raysSpeed, lightSpread, rayLength, pulsating]);
+  }, [isVisible, isPageVisible, raysOrigin, raysColor, raysSpeed, lightSpread, rayLength, pulsating]);
 
   return <div ref={containerRef} className={`light-rays-container ${className}`} />;
 };
